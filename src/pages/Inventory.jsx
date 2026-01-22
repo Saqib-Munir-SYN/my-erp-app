@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
 
 const ITEMS_PER_PAGE = 10;
 
 export default function Inventory() {
   const { products, addProduct, updateProduct, deleteProduct, globalSearch } = useApp();
+  const { isDark } = useTheme();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -60,8 +62,12 @@ export default function Inventory() {
       {/* Header & Search */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Inventory Management</h1>
-          <p className="text-slate-500 text-sm">Manage products and stock levels</p>
+          <h1 className={`text-2xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
+            Inventory Management
+          </h1>
+          <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+            Manage products and stock levels
+          </p>
         </div>
         
         <div className="flex items-center gap-3">
@@ -70,7 +76,11 @@ export default function Inventory() {
             <input 
               type="text"
               placeholder="Search products..."
-              className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none w-64 text-sm shadow-sm"
+              className={`pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none w-64 text-sm shadow-sm ${
+                isDark
+                  ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400'
+                  : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'
+              }`}
               value={localSearch}
               onChange={handleSearchChange}
             />
@@ -85,9 +95,17 @@ export default function Inventory() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className={`rounded-2xl shadow-sm overflow-hidden border ${
+        isDark
+          ? 'bg-slate-800 border-slate-700'
+          : 'bg-white border-slate-200'
+      }`}>
         <table className="w-full text-left">
-          <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase font-bold tracking-widest">
+          <thead className={`text-xs uppercase font-bold tracking-widest border-b ${
+            isDark
+              ? 'bg-slate-700 border-slate-600 text-slate-300'
+              : 'bg-slate-50 border-slate-200 text-slate-500'
+          }`}>
             <tr>
               <th className="p-4">Product Name</th>
               <th className="p-4">SKU</th>
@@ -95,12 +113,20 @@ export default function Inventory() {
               <th className="p-4 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className={isDark ? 'divide-y divide-slate-700' : 'divide-y divide-slate-100'}>
             {paginatedProducts.length > 0 ? (
               paginatedProducts.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="p-4 font-bold text-slate-800">{p.name}</td>
-                  <td className="p-4 text-slate-600 text-sm font-mono">{p.SKU}</td>
+                <tr key={p.id} className={`transition-colors ${
+                  isDark
+                    ? 'hover:bg-slate-700 border-slate-700'
+                    : 'hover:bg-slate-50/50 border-slate-100'
+                }`}>
+                  <td className={`p-4 font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                    {p.name}
+                  </td>
+                  <td className={`p-4 text-sm font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    {p.SKU}
+                  </td>
                   <td className="p-4">
                     <span className={`px-3 py-1 rounded-lg font-bold text-sm ${
                       p.stock < 5 ? 'bg-red-100 text-red-700' : 
@@ -119,7 +145,11 @@ export default function Inventory() {
                     </button>
                     <button 
                       onClick={() => deleteProduct(p.id)} 
-                      className="px-3 py-1.5 text-slate-400 font-bold text-xs hover:bg-red-50 hover:text-red-600 rounded-lg uppercase tracking-tighter"
+                      className={`px-3 py-1.5 font-bold text-xs rounded-lg uppercase tracking-tighter ${
+                        isDark
+                          ? 'text-slate-400 hover:text-red-400 hover:bg-slate-700'
+                          : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
+                      }`}
                     >
                       Del
                     </button>
@@ -128,7 +158,9 @@ export default function Inventory() {
               ))
             ) : (
               <tr>
-                <td colSpan="4" className="p-12 text-center text-slate-400 italic">No products found</td>
+                <td colSpan="4" className={`p-12 text-center italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  No products found
+                </td>
               </tr>
             )}
           </tbody>
@@ -137,15 +169,23 @@ export default function Inventory() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
-          <span className="text-sm text-slate-600">
+        <div className={`flex items-center justify-between p-4 rounded-2xl border ${
+          isDark
+            ? 'bg-slate-800 border-slate-700'
+            : 'bg-white border-slate-200'
+        }`}>
+          <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             Page {currentPage} of {totalPages} ({filteredProducts.length} total)
           </span>
           <div className="flex gap-2">
             <button 
               onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
-              className="px-3 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 font-bold text-sm"
+              className={`px-3 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-50 ${
+                isDark
+                  ? 'border-slate-600 hover:bg-slate-700 text-slate-300'
+                  : 'border border-slate-200 hover:bg-slate-50 text-slate-900'
+              }`}
             >
               ← Previous
             </button>
@@ -153,10 +193,12 @@ export default function Inventory() {
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
-                className={`px-3 py-2 rounded-lg font-bold text-sm ${
+                className={`px-3 py-2 rounded-lg font-bold text-sm transition-all ${
                   currentPage === page
                     ? 'bg-blue-600 text-white'
-                    : 'border border-slate-200 hover:bg-slate-50'
+                    : isDark
+                      ? 'border border-slate-600 hover:bg-slate-700 text-slate-300'
+                      : 'border border-slate-200 hover:bg-slate-50 text-slate-900'
                 }`}
               >
                 {page}
@@ -165,7 +207,11 @@ export default function Inventory() {
             <button 
               onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
-              className="px-3 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 font-bold text-sm"
+              className={`px-3 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-50 ${
+                isDark
+                  ? 'border-slate-600 hover:bg-slate-700 text-slate-300'
+                  : 'border border-slate-200 hover:bg-slate-50 text-slate-900'
+              }`}
             >
               Next →
             </button>
@@ -176,27 +222,49 @@ export default function Inventory() {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 p-8">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6">{editingProduct ? "Edit Product" : "Add Product"}</h2>
+          <div className={`w-full max-w-md rounded-3xl shadow-2xl border p-8 ${
+            isDark
+              ? 'bg-slate-800 border-slate-700'
+              : 'bg-white border-slate-100'
+          }`}>
+            <h2 className={`text-2xl font-bold mb-6 ${isDark ? 'text-white' : 'text-slate-800'}`}>
+              {editingProduct ? "Edit Product" : "Add Product"}
+            </h2>
             <form onSubmit={handleSave} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Product Name</label>
+                <label className={`block text-[10px] font-black uppercase mb-2 ${
+                  isDark ? 'text-slate-400' : 'text-slate-400'
+                }`}>
+                  Product Name
+                </label>
                 <input 
                   autoFocus
                   type="text" 
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none border ${
+                    isDark
+                      ? 'bg-slate-700 border-slate-600 text-white'
+                      : 'bg-slate-50 border-slate-200 text-slate-900'
+                  }`}
                   required
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Stock Quantity</label>
+                <label className={`block text-[10px] font-black uppercase mb-2 ${
+                  isDark ? 'text-slate-400' : 'text-slate-400'
+                }`}>
+                  Stock Quantity
+                </label>
                 <input 
                   type="number" 
                   value={formData.stock}
                   onChange={(e) => setFormData({...formData, stock: e.target.value})}
-                  className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none border ${
+                    isDark
+                      ? 'bg-slate-700 border-slate-600 text-white'
+                      : 'bg-slate-50 border-slate-200 text-slate-900'
+                  }`}
                   min="0"
                   required
                 />
@@ -205,7 +273,11 @@ export default function Inventory() {
                 <button 
                   type="button" 
                   onClick={() => setIsModalOpen(false)} 
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 py-3 rounded-xl font-bold transition-all"
+                  className={`flex-1 py-3 rounded-xl font-bold transition-all ${
+                    isDark
+                      ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                  }`}
                 >
                   Cancel
                 </button>

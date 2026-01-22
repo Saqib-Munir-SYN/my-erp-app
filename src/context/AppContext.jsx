@@ -19,6 +19,16 @@ export function AppProvider({ children }) {
     ];
   });
 
+  const [orders, setOrders] = useState(() => {
+    const saved = localStorage.getItem('erp_orders');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [invoices, setInvoices] = useState(() => {
+    const saved = localStorage.getItem('erp_invoices');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [globalSearch, setGlobalSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -27,6 +37,14 @@ export function AppProvider({ children }) {
   useEffect(() => {
     localStorage.setItem('erp_products', JSON.stringify(products));
   }, [products]);
+
+  useEffect(() => {
+    localStorage.setItem('erp_orders', JSON.stringify(orders));
+  }, [orders]);
+
+  useEffect(() => {
+    localStorage.setItem('erp_invoices', JSON.stringify(invoices));
+  }, [invoices]);
 
   useEffect(() => {
     localStorage.setItem('erp_customers', JSON.stringify(customers));
@@ -82,7 +100,86 @@ export function AppProvider({ children }) {
     setCustomers(prev => prev.filter(c => c.id !== id));
   }, []);
 
-  // 5. MEMOIZE VALUE TO PREVENT UNNECESSARY RE-RENDERS
+  // 6. ORDER ACTIONS
+  const addOrder = useCallback((order) => {
+    const newOrder = {
+      ...order,
+      id: order.id || Date.now(),
+      orderNumber: `ORD-${Date.now()}`,
+      status: order.status || 'draft',
+      createdAt: new Date().toISOString(),
+    };
+    setOrders(prev => [...prev, newOrder]);
+    return newOrder;
+  }, []);
+
+  const updateOrder = useCallback((updatedOrder) => {
+    setOrders(prev =>
+      prev.map(o =>
+        o.id === updatedOrder.id
+          ? { ...o, ...updatedOrder, updatedAt: new Date().toISOString() }
+          : o
+      )
+    );
+  }, []);
+
+  const deleteOrder = useCallback((id) => {
+    setOrders(prev => prev.filter(o => o.id !== id));
+  }, []);
+
+  // 7. INVOICE ACTIONS
+  const addInvoice = useCallback((invoice) => {
+    const newInvoice = {
+      ...invoice,
+      id: invoice.id || Date.now(),
+      invoiceNumber: `INV-${Date.now()}`,
+      status: invoice.status || 'unpaid',
+      createdAt: new Date().toISOString(),
+    };
+    setInvoices(prev => [...prev, newInvoice]);
+    return newInvoice;
+  }, []);
+
+  const updateInvoice = useCallback((updatedInvoice) => {
+    setInvoices(prev =>
+      prev.map(i =>
+        i.id === updatedInvoice.id
+          ? { ...i, ...updatedInvoice, updatedAt: new Date().toISOString() }
+          : i
+      )
+    );
+  }, []);
+
+  const deleteInvoice = useCallback((id) => {
+    setInvoices(prev => prev.filter(i => i.id !== id));
+  }, []);
+
+  const generateInvoiceFromOrder = useCallback((orderId) => {
+    const order = orders.find(o => o.id === parseInt(orderId));
+    if (!order) return null;
+
+    const invoice = {
+      id: Date.now(),
+      orderId: order.id,
+      invoiceNumber: `INV-${Date.now()}`,
+      customerId: order.customerId,
+      items: order.items || [],
+      subtotal: order.subtotal || 0,
+      tax: order.tax || 0,
+      shipping: order.shipping || 0,
+      discount: order.discount || 0,
+      total: order.total || 0,
+      status: 'unpaid',
+      amountPaid: 0,
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      createdAt: new Date().toISOString(),
+    };
+
+    addInvoice(invoice);
+    return invoice;
+  }, [orders, addInvoice]);
+
+  // 8. MEMOIZE VALUE TO PREVENT UNNECESSARY RE-RENDERS
   const value = useMemo(
     () => ({
       // Products
@@ -99,6 +196,21 @@ export function AppProvider({ children }) {
       updateCustomer,
       deleteCustomer,
 
+      // Orders
+      orders,
+      setOrders,
+      addOrder,
+      updateOrder,
+      deleteOrder,
+
+      // Invoices
+      invoices,
+      setInvoices,
+      addInvoice,
+      updateInvoice,
+      deleteInvoice,
+      generateInvoiceFromOrder,
+
       // Global State
       globalSearch,
       setGlobalSearch,
@@ -110,6 +222,8 @@ export function AppProvider({ children }) {
     [
       products,
       customers,
+      orders,
+      invoices,
       globalSearch,
       loading,
       error,
@@ -119,6 +233,13 @@ export function AppProvider({ children }) {
       addCustomer,
       updateCustomer,
       deleteCustomer,
+      addOrder,
+      updateOrder,
+      deleteOrder,
+      addInvoice,
+      updateInvoice,
+      deleteInvoice,
+      generateInvoiceFromOrder,
     ]
   );
 

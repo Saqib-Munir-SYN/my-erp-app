@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useTheme } from '../context/ThemeContext';
 
 export default function Products() {
+  const { isDark } = useTheme();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -15,7 +17,11 @@ export default function Products() {
       });
   }, []);
 
-  if (loading) return <div className="text-center py-8">Loading...</div>;
+  if (loading) return (
+    <div className={`text-center py-8 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+      Loading...
+    </div>
+  );
 
   const totalPages = Math.ceil(products.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -38,13 +44,26 @@ export default function Products() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">Products</h1>
+        <div>
+          <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            Products
+          </h1>
+          <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            Browse all available products
+          </p>
+        </div>
         <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-slate-700">Items per page:</label>
+          <label className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+            Items per page:
+          </label>
           <select
             value={itemsPerPage}
             onChange={handleItemsPerPageChange}
-            className="px-4 py-2 border border-slate-300 rounded-lg bg-white hover:border-blue-500 transition-colors focus:ring-2 focus:ring-blue-500 outline-none"
+            className={`px-4 py-2 rounded-lg transition-colors focus:ring-2 focus:ring-blue-500 outline-none ${
+              isDark
+                ? 'bg-slate-700 border border-slate-600 text-white hover:border-blue-500'
+                : 'bg-white border border-slate-300 text-slate-900 hover:border-blue-500'
+            }`}
           >
             <option value={6}>6</option>
             <option value={12}>12</option>
@@ -57,19 +76,31 @@ export default function Products() {
         {currentProducts.map(product => (
           <div
             key={product.id}
-            className="border border-slate-200 p-5 rounded-xl bg-white shadow-md hover:shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-2 cursor-pointer group"
+            className={`border p-5 rounded-xl shadow-md hover:shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-2 cursor-pointer group ${
+              isDark
+                ? 'bg-slate-800 border-slate-700 hover:bg-slate-700'
+                : 'bg-white border-slate-200 hover:bg-slate-50'
+            }`}
           >
-            <div className="overflow-hidden rounded-lg mb-4 h-48 bg-slate-100">
+            <div className={`overflow-hidden rounded-lg mb-4 h-48 ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}>
               <img
                 src={product.image}
                 alt={product.title}
                 className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
               />
             </div>
-            <h2 className="font-bold text-slate-900 line-clamp-2">{product.title}</h2>
-            <p className="text-blue-600 font-semibold mt-2">${product.price}</p>
-            <p className="text-sm text-slate-500 capitalize mt-1">{product.category}</p>
-            <p className="text-yellow-500 font-semibold mt-2">⭐ {product.rating.rate} ({product.rating.count})</p>
+            <h2 className={`font-bold line-clamp-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              {product.title}
+            </h2>
+            <p className="text-blue-600 font-semibold mt-2">
+              ${product.price}
+            </p>
+            <p className={`text-sm capitalize mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {product.category}
+            </p>
+            <p className="text-yellow-500 font-semibold mt-2">
+              ⭐ {product.rating.rate} ({product.rating.count})
+            </p>
           </div>
         ))}
       </div>
@@ -83,7 +114,7 @@ export default function Products() {
         >
           ← Previous
         </button>
-        <span className="text-lg font-semibold text-slate-900 min-w-fit">
+        <span className={`text-lg font-semibold min-w-fit ${isDark ? 'text-white' : 'text-slate-900'}`}>
           Page {currentPage} of {totalPages}
         </span>
         <button

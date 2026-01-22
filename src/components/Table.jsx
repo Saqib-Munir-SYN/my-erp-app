@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useTheme } from '../context/ThemeContext';
 import { SkeletonTable } from './Skeleton';
 
 export function Table({ columns, data, onEdit, onDelete, loading = false }) {
+  const { isDark } = useTheme();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -14,8 +16,14 @@ export function Table({ columns, data, onEdit, onDelete, loading = false }) {
 
   if (!data || data.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-        <p className="text-slate-500 text-lg">📭 No data available</p>
+      <div className={`rounded-xl border p-12 text-center ${
+        isDark
+          ? 'bg-slate-800 border-slate-700'
+          : 'bg-white border-slate-200'
+      }`}>
+        <p className={`text-lg ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+          📭 No data available
+        </p>
       </div>
     );
   }
@@ -25,20 +33,32 @@ export function Table({ columns, data, onEdit, onDelete, loading = false }) {
     return (
       <div className="space-y-4">
         {data.map((row, idx) => (
-          <div key={row.id || idx} className="bg-white rounded-lg border border-slate-200 p-4">
+          <div key={row.id || idx} className={`rounded-lg border p-4 ${
+            isDark
+              ? 'bg-slate-800 border-slate-700'
+              : 'bg-white border-slate-200'
+          }`}>
             {columns.map(col => (
-              <div key={col.key} className="flex justify-between mb-2 pb-2 border-b border-slate-100 last:border-0">
-                <span className="font-semibold text-slate-600 text-sm">{col.label}:</span>
-                <span className="text-slate-900 font-medium">
+              <div key={col.key} className={`flex justify-between mb-2 pb-2 border-b last:border-0 ${
+                isDark ? 'border-slate-700' : 'border-slate-100'
+              }`}>
+                <span className={`font-semibold text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {col.label}:
+                </span>
+                <span className={`font-medium ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                   {col.render ? col.render(row[col.key], row) : row[col.key]}
                 </span>
               </div>
             ))}
-            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+            <div className={`flex gap-2 mt-3 pt-3 border-t ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
               {onEdit && (
                 <button
                   onClick={() => onEdit(row)}
-                  className="flex-1 px-3 py-2 text-blue-600 hover:bg-blue-50 rounded font-semibold text-sm"
+                  className={`flex-1 px-3 py-2 rounded font-semibold text-sm transition-colors ${
+                    isDark
+                      ? 'text-blue-400 hover:bg-slate-700'
+                      : 'text-blue-600 hover:bg-blue-50'
+                  }`}
                   type="button"
                 >
                   ✎ Edit
@@ -51,7 +71,11 @@ export function Table({ columns, data, onEdit, onDelete, loading = false }) {
                       onDelete(row.id);
                     }
                   }}
-                  className="flex-1 px-3 py-2 text-red-600 hover:bg-red-50 rounded font-semibold text-sm"
+                  className={`flex-1 px-3 py-2 rounded font-semibold text-sm transition-colors ${
+                    isDark
+                      ? 'text-red-400 hover:bg-slate-700'
+                      : 'text-red-600 hover:bg-red-50'
+                  }`}
                   type="button"
                 >
                   🗑 Delete
@@ -66,26 +90,46 @@ export function Table({ columns, data, onEdit, onDelete, loading = false }) {
 
   // Desktop Table View
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className={`overflow-x-auto rounded-xl border shadow-sm ${
+      isDark
+        ? 'bg-slate-800 border-slate-700'
+        : 'bg-white border-slate-200'
+    }`}>
       <table className="w-full">
-        <thead className="bg-linear-to-r from-slate-50 to-slate-100 border-b border-slate-200">
+        <thead className={`border-b ${
+          isDark
+            ? 'bg-slate-700 border-slate-600'
+            : 'bg-slate-50 border-slate-200'
+        }`}>
           <tr>
             {columns.map(col => (
               <th
                 key={col.key}
-                className="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase tracking-wider"
+                className={`px-6 py-4 text-left text-xs font-bold uppercase tracking-wider ${
+                  isDark ? 'text-slate-300' : 'text-slate-600'
+                }`}
               >
                 {col.label}
               </th>
             ))}
-            <th className="px-6 py-4 text-center text-xs font-bold text-slate-600">Actions</th>
+            <th className={`px-6 py-4 text-center text-xs font-bold uppercase tracking-wider ${
+              isDark ? 'text-slate-300' : 'text-slate-600'
+            }`}>
+              Actions
+            </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200">
+        <tbody className={isDark ? 'divide-y divide-slate-700' : 'divide-y divide-slate-200'}>
           {data.map((row, idx) => (
-            <tr key={row.id || idx} className="hover:bg-slate-50 transition-colors">
+            <tr key={row.id || idx} className={`transition-colors ${
+              isDark
+                ? 'hover:bg-slate-700'
+                : 'hover:bg-slate-50'
+            }`}>
               {columns.map(col => (
-                <td key={col.key} className="px-6 py-4 text-sm text-slate-900 font-medium">
+                <td key={col.key} className={`px-6 py-4 text-sm font-medium ${
+                  isDark ? 'text-slate-200' : 'text-slate-900'
+                }`}>
                   {col.render ? col.render(row[col.key], row) : row[col.key]}
                 </td>
               ))}
@@ -93,7 +137,11 @@ export function Table({ columns, data, onEdit, onDelete, loading = false }) {
                 {onEdit && (
                   <button
                     onClick={() => onEdit(row)}
-                    className="text-blue-600 hover:text-blue-800 font-semibold text-sm transition-colors"
+                    className={`font-semibold text-sm transition-colors ${
+                      isDark
+                        ? 'text-blue-400 hover:text-blue-300'
+                        : 'text-blue-600 hover:text-blue-800'
+                    }`}
                     type="button"
                   >
                     ✎ Edit
@@ -106,7 +154,11 @@ export function Table({ columns, data, onEdit, onDelete, loading = false }) {
                         onDelete(row.id);
                       }
                     }}
-                    className="text-red-600 hover:text-red-800 font-semibold text-sm transition-colors"
+                    className={`font-semibold text-sm transition-colors ${
+                      isDark
+                        ? 'text-red-400 hover:text-red-300'
+                        : 'text-red-600 hover:text-red-800'
+                    }`}
                     type="button"
                   >
                     🗑 Delete

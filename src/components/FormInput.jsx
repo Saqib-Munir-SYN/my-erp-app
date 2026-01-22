@@ -1,3 +1,5 @@
+import { useTheme } from '../context/ThemeContext';
+
 export function FormInput({
   label,
   name,
@@ -11,10 +13,11 @@ export function FormInput({
   required = false,
   disabled = false,
 }) {
+  const { isDark } = useTheme();
   return (
     <div className="mb-4">
       {label && (
-        <label className="block text-sm font-bold text-slate-700 mb-2">
+        <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
@@ -29,12 +32,12 @@ export function FormInput({
         disabled={disabled}
         className={`w-full px-4 py-2.5 rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 ${
           touched && error
-            ? 'border-red-500 focus:ring-red-500 bg-red-50'
-            : 'border-slate-300 focus:ring-blue-500 bg-white hover:border-slate-400'
-        } ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+            ? `border-red-500 focus:ring-red-500 ${isDark ? 'bg-red-950 text-white' : 'bg-red-50'}`
+            : `focus:ring-blue-500 hover:border-blue-400 ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'border-slate-300 bg-white'}`
+        } ${disabled ? `cursor-not-allowed ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100'}` : ''}`}
       />
       {touched && error && (
-        <p className="text-red-500 text-xs font-semibold mt-1">⚠ {error}</p>
+        <p className={`text-xs font-semibold mt-1 ${isDark ? 'text-red-400' : 'text-red-500'}`}>⚠ {error}</p>
       )}
     </div>
   );
@@ -52,10 +55,11 @@ export function FormSelect({
   required = false,
   disabled = false,
 }) {
+  const { isDark } = useTheme();
   return (
     <div className="mb-4">
       {label && (
-        <label className="block text-sm font-bold text-slate-700 mb-2">
+        <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
@@ -68,9 +72,9 @@ export function FormSelect({
         disabled={disabled}
         className={`w-full px-4 py-2.5 rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 ${
           touched && error
-            ? 'border-red-500 focus:ring-red-500 bg-red-50'
-            : 'border-slate-300 focus:ring-blue-500 bg-white hover:border-slate-400'
-        } ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+            ? `border-red-500 focus:ring-red-500 ${isDark ? 'bg-red-950 text-white' : 'bg-red-50'}`
+            : `focus:ring-blue-500 hover:border-blue-400 ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'border-slate-300 bg-white'}`
+        } ${disabled ? `cursor-not-allowed ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100'}` : ''}`}
       >
         <option value="">Select {label?.toLowerCase() || 'option'}</option>
         {options?.map(opt => (
@@ -80,7 +84,7 @@ export function FormSelect({
         ))}
       </select>
       {touched && error && (
-        <p className="text-red-500 text-xs font-semibold mt-1">⚠ {error}</p>
+        <p className={`text-xs font-semibold mt-1 ${isDark ? 'text-red-400' : 'text-red-500'}`}>⚠ {error}</p>
       )}
     </div>
   );
@@ -98,11 +102,11 @@ export function FormTextarea({
   required = false,
   disabled = false,
   rows = 4,
-}) {
+})const { isDark } = useTheme();
   return (
     <div className="mb-4">
       {label && (
-        <label className="block text-sm font-bold text-slate-700 mb-2">
+        <label className={`block text-sm font-bold mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
@@ -117,11 +121,12 @@ export function FormTextarea({
         rows={rows}
         className={`w-full px-4 py-2.5 rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 ${
           touched && error
-            ? 'border-red-500 focus:ring-red-500 bg-red-50'
-            : 'border-slate-300 focus:ring-blue-500 bg-white hover:border-slate-400'
-        } ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+            ? `border-red-500 focus:ring-red-500 ${isDark ? 'bg-red-950 text-white' : 'bg-red-50'}`
+            : `focus:ring-blue-500 hover:border-blue-400 ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'border-slate-300 bg-white'}`
+        } ${disabled ? `cursor-not-allowed ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100'}` : ''}`}
       />
       {touched && error && (
+        <p className={`text-xs font-semibold mt-1 ${isDark ? 'text-red-400' : 'text-red-500'}`}
         <p className="text-red-500 text-xs font-semibold mt-1">⚠ {error}</p>
       )}
     </div>

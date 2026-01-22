@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import MainLayout from './layouts/MainLayout';
@@ -8,14 +9,17 @@ import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import Customers from './pages/Customers';
 import Products from './pages/Products';
+import Orders from './pages/Orders';
+import Invoices from './pages/Invoices';
 
 function App() {
   return (
     <ErrorBoundary>
-      <AppProvider>
-        <ToastProvider>
-          <Router>
-            <MainLayout>
+      <ThemeProvider>
+        <AppProvider>
+          <ToastProvider>
+            <Router>
+              <MainLayout>
               <Routes>
                 {/* 1. Dashboard Route */}
                 <Route path="/" element={<Dashboard />} />
@@ -29,7 +33,13 @@ function App() {
                 {/* 4. Products Route */}
                 <Route path="/products" element={<Products />} />
 
-                {/* 5. Safety Net: Catch-all for broken links */}
+                {/* 5. Orders/Sales Route */}
+                <Route path="/orders" element={<Orders />} />
+
+                {/* 6. Invoices & Payments Route */}
+                <Route path="/invoices" element={<Invoices />} />
+
+                {/* 7. Safety Net: Catch-all for broken links */}
                 <Route
                   path="*"
                   element={
@@ -47,9 +57,10 @@ function App() {
                 />
               </Routes>
             </MainLayout>
-          </Router>
-        </ToastProvider>
-      </AppProvider>
+              </Router>
+            </ToastProvider>
+          </AppProvider>
+        </ThemeProvider>
     </ErrorBoundary>
   );
 }

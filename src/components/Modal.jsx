@@ -1,4 +1,7 @@
+import { useTheme } from '../context/ThemeContext';
+
 export function Modal({ isOpen, onClose, title, children, size = 'md' }) {
+  const { isDark } = useTheme();
   if (!isOpen) return null;
 
   const sizeClass = {
@@ -17,13 +20,13 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }) {
       ></div>
 
       {/* Modal */}
-      <div className={`relative ${sizeClass} w-full mx-4 bg-white rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-300`}>
+      <div className={`relative ${sizeClass} w-full mx-4 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-300 ${isDark ? 'bg-slate-900' : 'bg-white'}`}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200">
-          <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+        <div className={`flex items-center justify-between p-6 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+          <h2 className={`text-xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{title}</h2>
           <button
             onClick={onClose}
-            className="text-slate-500 hover:text-slate-700 text-2xl transition-colors"
+            className={`text-2xl transition-colors ${isDark ? 'text-slate-400 hover:text-slate-300' : 'text-slate-500 hover:text-slate-700'}`}
           >
             ✕
           </button>

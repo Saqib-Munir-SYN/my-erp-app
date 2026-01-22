@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
 import { NavLink } from '../components/NavLink';
 import logo from '../assets/logo.svg';
 
 export default function MainLayout({ children }) {
   const { globalSearch, setGlobalSearch } = useApp();
+  const { isDark, toggleTheme } = useTheme();
   const [showApiInfo, setShowApiInfo] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
 
@@ -25,10 +27,12 @@ export default function MainLayout({ children }) {
     { path: '/inventory', label: 'Inventory', icon: '📦' },
     { path: '/customers', label: 'Customers', icon: '👥' },
     { path: '/products', label: 'Products', icon: '🛍️' },
+    { path: '/orders', label: 'Orders', icon: '🛒' },
+    { path: '/invoices', label: 'Invoices', icon: '🧾' },
   ], []);
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans">
+    <div className={`flex min-h-screen font-sans ${isDark ? 'dark bg-slate-950' : 'bg-slate-50'}`}>
       {/* SIDEBAR */}
       <nav
         onMouseEnter={handleSidebarEnter}
@@ -111,7 +115,7 @@ export default function MainLayout({ children }) {
       {/* MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col">
         {/* HEADER */}
-        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm sticky top-0 z-40">
+        <header className={`h-20 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border-b flex items-center justify-between px-8 shadow-sm sticky top-0 z-40`}>
           {/* Search Bar */}
           <div className="flex-1 max-w-md">
             <div className="relative">
@@ -121,13 +125,31 @@ export default function MainLayout({ children }) {
                 placeholder="Search..."
                 value={globalSearch}
                 onChange={handleSearchChange}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none text-sm transition-all duration-150"
+                className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all duration-150 ${
+                  isDark 
+                    ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500 focus:bg-slate-700' 
+                    : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white'
+                }`}
               />
             </div>
           </div>
 
           {/* User Section */}
           <div className="flex items-center space-x-6 ml-8">
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className={`p-2.5 rounded-xl transition-colors hover:bg-opacity-80 ${
+                isDark
+                  ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              type="button"
+            >
+              {isDark ? '☀️' : '🌙'}
+            </button>
+
             {/* Logo Image */}
             {logo && (
               <img
@@ -138,7 +160,7 @@ export default function MainLayout({ children }) {
             )}
 
             {/* User Profile */}
-            <div className="hidden md:flex items-center gap-3 pl-6 border-l border-slate-200">
+            <div className={`hidden md:flex items-center gap-3 pl-6 border-l ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <div 
                 className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-black text-white shadow-lg shrink-0"
                 style={{
@@ -148,15 +170,15 @@ export default function MainLayout({ children }) {
                 AD
               </div>
               <div>
-                <p className="text-slate-700 font-bold text-sm">Admin</p>
-                <p className="text-slate-400 text-xs">System Admin</p>
+                <p className={`font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>Admin</p>
+                <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>System Admin</p>
               </div>
             </div>
           </div>
         </header>
 
         {/* PAGE CONTENT */}
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className={`flex-1 p-8 overflow-y-auto ${isDark ? 'bg-slate-950' : 'bg-slate-50'}`}>
           <div className="max-w-7xl mx-auto">
             {children}
           </div>
