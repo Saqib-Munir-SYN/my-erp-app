@@ -158,26 +158,124 @@ export function AppProvider({ children }) {
     const order = orders.find(o => o.id === parseInt(orderId));
     if (!order) return null;
 
+    // Check if invoice already exists for this order
+    const existingInvoice = invoices.find(inv => inv.orderId === order.id);
+    if (existingInvoice) return existingInvoice;
+
+    // Ensure all items have numeric prices/quantities
+    const itemsWithNumbers = (order.items || []).map(item => ({
+      ...item,
+      productId: item.productId,
+      quantity: parseInt(item.quantity) || 0,
+      price: parseFloat(item.price) || 0,
+      discount: parseFloat(item.discount) || 0
+    }));
+
     const invoice = {
       id: Date.now(),
       orderId: order.id,
       invoiceNumber: `INV-${Date.now()}`,
       customerId: order.customerId,
-      items: order.items || [],
-      subtotal: order.subtotal || 0,
-      tax: order.tax || 0,
-      shipping: order.shipping || 0,
-      discount: order.discount || 0,
-      total: order.total || 0,
-      status: 'unpaid',
-      amountPaid: 0,
+      items: itemsWithNumbers,
+      subtotal: parseFloat(order.subtotal) || 0,
+      tax: parseFloat(order.tax) || 0,
+      shipping: parseFloat(order.shipping) || 0,
+      discount: parseFloat(order.discount) || 0,
+      total: parseFloat(order.total) || 0,
+      status: 'draft',
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      amountPaid: 0,
+      paymentHistory: [],
+      template: 'standard',
+      isRecurring: false,
+      recurringFrequency: null,
+      lastRecurringDate: null,
       createdAt: new Date().toISOString(),
     };
 
     addInvoice(invoice);
     return invoice;
-  }, [orders, addInvoice]);
+  }, [orders, invoices, addInvoice]);
+
+  const sendInvoiceToCustomer = useCallback((invoiceId) => {
+    updateInvoice({
+      id: invoiceId,
+      status: 'sent',
+      sentAt: new Date().toISOString()
+    });
+  }, [updateInvoice]);
+
+  const recordPayment = useCallback((invoiceId, paymentData) => {
+    const invoice = invoices.find(i => i.id === invoiceId);
+    if (!invoice) return null;
+
+    const previousAmountPaid = invoice.amountPaid || 0;
+    const newAmountPaid = previousAmountPaid + paymentData.amount;
+    
+    let newStatus = invoice.status;
+    if (newAmountPaid >= invoice.total) {
+      newStatus = 'paid';
+    } else if (newAmountPaid > 0) {
+      newStatus = 'partial';
+    }
+
+    const paymentRecord = {
+      id: Date.now(),
+      amount: paymentData.amount,
+      method: paymentData.method,
+      notes: paymentData.notes || '',
+      date: new Date().toISOString(),
+      reference: paymentData.reference || '',
+    };
+
+    const updatedInvoice = {
+      ...invoice,
+      id: invoiceId,
+      amountPaid: newAmountPaid,
+      status: newStatus,
+      paymentHistory: [...(invoice.paymentHistory || []), paymentRecord],
+      lastPaymentDate: new Date().toISOString(),
+      lastPaymentMethod: paymentData.method,
+    };
+
+    updateInvoice(updatedInvoice);
+    return updatedInvoice;
+  }, [invoices, updateInvoice]);
+
+  const checkAndMarkOverdue = useCallback(() => {
+    const today = new Date();
+    invoices.forEach(invoice => {
+      if (invoice.dueDate && invoice.status !== 'paid') {
+        const dueDate = new Date(invoice.dueDate);
+        if (dueDate < today && invoice.status !== 'overdue') {
+          updateInvoice({
+            id: invoice.id,
+            status: 'overdue'
+          });
+        }
+      }
+    });
+  }, [invoices, updateInvoice]);
+
+  const createRecurringInvoice = useCallback((invoiceTemplate) => {
+    const newInvoice = {
+      ...invoiceTemplate,
+      id: Date.now(),
+      invoiceNumber: `INV-${Date.now()}`,
+      isRecurring: true,
+      createdAt: new Date().toISOString(),
+      status: 'draft',
+      amountPaid: 0,
+      paymentHistory: [],
+    };
+    addInvoice(newInvoice);
+    return newInvoice;
+  }, [addInvoice]);
+
+  // Auto-check for overdue invoices on mount and when invoices change
+  useEffect(() => {
+    checkAndMarkOverdue();
+  }, [invoices, checkAndMarkOverdue]);
 
   // 8. MEMOIZE VALUE TO PREVENT UNNECESSARY RE-RENDERS
   const value = useMemo(
@@ -210,6 +308,10 @@ export function AppProvider({ children }) {
       updateInvoice,
       deleteInvoice,
       generateInvoiceFromOrder,
+      sendInvoiceToCustomer,
+      recordPayment,
+      checkAndMarkOverdue,
+      createRecurringInvoice,
 
       // Global State
       globalSearch,
@@ -240,6 +342,10 @@ export function AppProvider({ children }) {
       updateInvoice,
       deleteInvoice,
       generateInvoiceFromOrder,
+      sendInvoiceToCustomer,
+      recordPayment,
+      checkAndMarkOverdue,
+      createRecurringInvoice,
     ]
   );
 
