@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { Loader } from './Loader'; // Assuming you have this component
+import { Loader } from "../components/Loader";
 
 export default function Products() {
   const { isDark } = useTheme();
