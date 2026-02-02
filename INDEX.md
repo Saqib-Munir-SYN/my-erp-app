@@ -3,6 +3,7 @@
 Welcome! This document serves as your complete guide to the ERP Pro application improvements, fixes, and recommendations.
 
 ## 📖 Documentation Guide
+done
 
 ### For Quick Start
 👉 **Start here**: [QUICK_START.md](./QUICK_START.md)
