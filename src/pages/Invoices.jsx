@@ -1,4 +1,5 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+/* eslint-disable no-unused-vars */
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import html2pdf from 'html2pdf.js';
@@ -14,6 +15,14 @@ const INVOICE_STATUSES = {
   overdue: { label: 'Overdue', color: (isDark) => isDark ? 'bg-red-950 text-red-400' : 'bg-red-200 text-red-900', icon: '🔴' },
 };
 
+// Utility functions (pure, safe)
+const toNumber = (val) => {
+  const num = parseFloat(val);
+  return isNaN(num) ? 0 : num;
+};
+
+const formatCurrency = (val) => toNumber(val).toFixed(2);
+
 export default function Invoices() {
   const { invoices, updateInvoice, deleteInvoice, generateInvoiceFromOrder, customers, orders, recordPayment, createRecurringInvoice } = useApp();
   const { isDark } = useTheme();
@@ -25,6 +34,7 @@ export default function Invoices() {
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [showPaymentHistory, setShowPaymentHistory] = useState(null);
+  const [exportingInvoice, setExportingInvoice] = useState(null); // Track which invoice is being exported
   
   const [paymentData, setPaymentData] = useState({ 
     method: 'credit_card', 
@@ -35,16 +45,35 @@ export default function Invoices() {
 
   const [templateData, setTemplateData] = useState({
     name: '',
-    frequency: 'monthly', // monthly, quarterly, annual
+    frequency: 'monthly',
   });
 
-  const pdfRef = useRef();
+  // Reset page when search/filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus]);
+
+  // ESC key closes modals
+  useEffect(() => {
+    if (!isPaymentModalOpen && !isTemplateModalOpen) return;
+    
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        setIsPaymentModalOpen(false);
+        setIsTemplateModalOpen(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isPaymentModalOpen, isTemplateModalOpen]);
 
   // Filter invoices
   const filteredInvoices = useMemo(() => {
+    const term = searchTerm.toLowerCase();
     return invoices.filter(inv => {
-      const matchesSearch = inv.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customers.find(c => c.id === inv.customerId)?.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = inv.invoiceNumber?.toLowerCase().includes(term) ||
+        customers.find(c => c.id === inv.customerId)?.name.toLowerCase().includes(term);
       const matchesStatus = filterStatus === 'all' || inv.status === filterStatus;
       return matchesSearch && matchesStatus;
     });
@@ -54,18 +83,27 @@ export default function Invoices() {
   const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedInvoices = filteredInvoices.slice(startIdx, startIdx + ITEMS_PER_PAGE);
 
-  // Calculate stats
-  const stats = useMemo(() => ({
-    total: invoices.length,
-    draft: invoices.filter(i => i.status === 'draft').length,
-    sent: invoices.filter(i => i.status === 'sent').length,
-    unpaid: invoices.filter(i => i.status === 'unpaid').length,
-    partial: invoices.filter(i => i.status === 'partial').length,
-    paid: invoices.filter(i => i.status === 'paid').length,
-    overdue: invoices.filter(i => i.status === 'overdue').length,
-    totalAmount: invoices.reduce((sum, i) => sum + (i.total || 0), 0),
-    amountCollected: invoices.reduce((sum, i) => sum + (i.amountPaid || 0), 0),
-  }), [invoices]);
+  // OPTIMIZED: Single-pass stats calculation (O(n) instead of O(7n))
+  const stats = useMemo(() => {
+    return invoices.reduce((acc, inv) => {
+      acc.total++;
+      acc.totalAmount += toNumber(inv.total);
+      acc.amountCollected += toNumber(inv.amountPaid);
+      
+      // Count statuses
+      if (inv.status === 'draft') acc.draft++;
+      else if (inv.status === 'sent') acc.sent++;
+      else if (inv.status === 'unpaid') acc.unpaid++;
+      else if (inv.status === 'partial') acc.partial++;
+      else if (inv.status === 'paid') acc.paid++;
+      else if (inv.status === 'overdue') acc.overdue++;
+      
+      return acc;
+    }, { 
+      total: 0, draft: 0, sent: 0, unpaid: 0, partial: 0, paid: 0, overdue: 0, 
+      totalAmount: 0, amountCollected: 0 
+    });
+  }, [invoices]);
 
   const getCustomerName = (customerId) => {
     return customers.find(c => c.id === parseInt(customerId))?.name || 'Unknown';
@@ -76,14 +114,23 @@ export default function Invoices() {
   };
 
   const isOverdue = (dueDate, status) => {
-    return status !== 'paid' && dueDate && new Date(dueDate) < new Date();
+    if (status === 'paid' || !dueDate) return false;
+    const date = new Date(dueDate);
+    if (isNaN(date.getTime())) return false; // Invalid date check
+    return date < new Date();
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleDateString();
   };
 
   const handleGenerateFromOrder = (orderId) => {
     const invoice = generateInvoiceFromOrder(orderId);
     if (invoice) {
       setCurrentPage(1);
-      // Auto-send notification
+      // Auto-send notification ( wrapping in setTimeout to allow UI to update first)
       setTimeout(() => {
         updateInvoice({
           id: invoice.id,
@@ -104,9 +151,10 @@ export default function Invoices() {
 
   const handlePaymentClick = (invoice) => {
     setEditingInvoice(invoice);
+    const remaining = toNumber(invoice.total) - toNumber(invoice.amountPaid);
     setPaymentData({ 
       method: 'credit_card', 
-      amount: parseFloat((invoice.total - (invoice.amountPaid || 0)).toFixed(2)),
+      amount: remaining > 0 ? remaining : 0, // Pre-fill with remaining balance
       reference: '',
       notes: ''
     });
@@ -114,17 +162,41 @@ export default function Invoices() {
   };
 
   const submitPayment = () => {
-    if (!editingInvoice || !paymentData.amount || paymentData.amount <= 0) return;
+    if (!editingInvoice) return;
     
-    recordPayment(editingInvoice.id, paymentData);
+    // VALIDATION: Check for valid amount
+    const amount = toNumber(paymentData.amount);
+    if (amount <= 0) {
+      alert('Please enter a valid payment amount greater than 0');
+      return;
+    }
+    
+    // VALIDATION: Check against remaining balance
+    const remaining = toNumber(editingInvoice.total) - toNumber(editingInvoice.amountPaid);
+    if (amount > remaining) {
+      alert(`Payment amount ($${formatCurrency(amount)}) cannot exceed remaining balance ($${formatCurrency(remaining)})`);
+      return;
+    }
+    
+    recordPayment(editingInvoice.id, { ...paymentData, amount });
     setIsPaymentModalOpen(false);
     setEditingInvoice(null);
     setPaymentData({ method: 'credit_card', amount: 0, reference: '', notes: '' });
   };
 
-  const exportToPDF = (invoice) => {
-    const element = document.getElementById(`invoice-${invoice.id}`);
-    if (!element) return;
+  // OPTIMIZED: On-demand PDF generation (only renders template for exporting invoice)
+  const exportToPDF = async (invoice) => {
+    setExportingInvoice(invoice.id);
+    
+    // Small delay to allow React to render the hidden PDF template
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    const element = document.getElementById(`invoice-pdf-${invoice.id}`);
+    if (!element) {
+      console.error('PDF element not found');
+      setExportingInvoice(null);
+      return;
+    }
 
     const opt = {
       margin: 10,
@@ -134,15 +206,19 @@ export default function Invoices() {
       jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
     };
 
-    html2pdf().set(opt).from(element).save();
+    try {
+      await html2pdf().set(opt).from(element).save();
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setExportingInvoice(null);
+    }
   };
-
-  // Helper function to safely format numbers
-  const toNumber = (val) => parseFloat(val) || 0;
-  const formatCurrency = (val) => toNumber(val).toFixed(2);
 
   const handleCreateTemplate = () => {
     if (!editingInvoice || !templateData.name) return;
+    
     createRecurringInvoice({
       ...editingInvoice,
       template: templateData.name,
@@ -150,9 +226,21 @@ export default function Invoices() {
       recurringFrequency: templateData.frequency,
       lastRecurringDate: new Date().toISOString()
     });
+    
     setIsTemplateModalOpen(false);
+    setEditingInvoice(null);
     setTemplateData({ name: '', frequency: 'monthly' });
   };
+
+  // Helper to safely delete with confirmation
+  const handleDelete = (id) => {
+    if (window.confirm('Are you sure you want to delete this invoice? This cannot be undone.')) {
+      deleteInvoice(id);
+    }
+  };
+
+  // Get invoice for payment history display
+  const historyInvoice = showPaymentHistory ? invoices.find(i => i.id === showPaymentHistory) : null;
 
   return (
     <div className="space-y-6">
@@ -179,7 +267,7 @@ export default function Invoices() {
                   : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400'
               }`}
               value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
         </div>
@@ -195,12 +283,10 @@ export default function Invoices() {
           { label: 'Partial', value: stats.partial, icon: '⏳', color: 'text-yellow-600' },
           { label: 'Paid', value: stats.paid, icon: '✓', color: 'text-emerald-600' },
           { label: 'Overdue', value: stats.overdue, icon: '🔴', color: 'text-red-700' },
-          { label: 'Amount Due', value: `$${(stats.totalAmount - stats.amountCollected).toFixed(2)}`, icon: '💰', color: 'text-violet-600' }
+          { label: 'Amount Due', value: `$${formatCurrency(stats.totalAmount - stats.amountCollected)}`, icon: '💰', color: 'text-violet-600' }
         ].map((stat, idx) => (
           <div key={idx} className={`p-2 rounded-lg shadow-sm border text-xs ${
-            isDark
-              ? 'bg-slate-800 border-slate-700'
-              : 'bg-white border-slate-200'
+            isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
           }`}>
             <div className={`text-lg font-bold ${stat.color}`}>{stat.icon}</div>
             <p className={`text-[10px] uppercase font-bold mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -218,7 +304,7 @@ export default function Invoices() {
         {['all', ...Object.keys(INVOICE_STATUSES)].map(status => (
           <button
             key={status}
-            onClick={() => { setFilterStatus(status); setCurrentPage(1); }}
+            onClick={() => setFilterStatus(status)}
             className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${
               filterStatus === status
                 ? 'bg-violet-600 text-white shadow-lg'
@@ -248,7 +334,7 @@ export default function Invoices() {
                       {order.orderNumber} - {getCustomerName(order.customerId)}
                     </p>
                     <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                      ${order.total?.toFixed(2)} • {order.status}
+                      ${formatCurrency(order.total)} • {order.status}
                     </p>
                   </div>
                   <button
@@ -271,15 +357,11 @@ export default function Invoices() {
 
       {/* TABLE */}
       <div className={`rounded-2xl shadow-sm overflow-hidden border ${
-        isDark
-          ? 'bg-slate-800 border-slate-700'
-          : 'bg-white border-slate-200'
+        isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
       }`}>
         <table className="w-full text-left text-sm">
           <thead className={`text-xs uppercase font-bold tracking-widest border-b ${
-            isDark
-              ? 'bg-slate-700 border-slate-600 text-slate-300'
-              : 'bg-slate-50 border-slate-200 text-slate-500'
+            isDark ? 'bg-slate-700 border-slate-600 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-500'
           }`}>
             <tr>
               <th className="p-4">Invoice #</th>
@@ -296,11 +378,10 @@ export default function Invoices() {
             {paginatedInvoices.length > 0 ? (
               paginatedInvoices.map((inv) => {
                 const statusConfig = INVOICE_STATUSES[inv.status] || INVOICE_STATUSES.draft;
+                const isInvOverdue = isOverdue(inv.dueDate, inv.status);
                 return (
                   <tr key={inv.id} className={`transition-colors ${
-                    isDark
-                      ? 'hover:bg-slate-700 border-slate-700'
-                      : 'hover:bg-slate-50/50 border-slate-100'
+                    isDark ? 'hover:bg-slate-700 border-slate-700' : 'hover:bg-slate-50/50 border-slate-100'
                   }`}>
                     <td className={`p-4 font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>
                       {inv.invoiceNumber}
@@ -312,10 +393,10 @@ export default function Invoices() {
                       {getCustomerName(inv.customerId)}
                     </td>
                     <td className="p-4 font-bold text-violet-600 text-right">
-                      ${inv.total?.toFixed(2) || '0.00'}
+                      ${formatCurrency(inv.total)}
                     </td>
                     <td className={`p-4 text-sm text-right font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                      ${(inv.amountPaid || 0).toFixed(2)}
+                      ${formatCurrency(inv.amountPaid)}
                     </td>
                     <td className="p-4">
                       <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase inline-block ${statusConfig.color(isDark)}`}>
@@ -323,9 +404,9 @@ export default function Invoices() {
                       </span>
                     </td>
                     <td className={`p-4 text-sm font-semibold ${
-                      isOverdue(inv.dueDate, inv.status) ? 'text-red-600 font-bold' : isDark ? 'text-slate-400' : 'text-slate-600'
+                      isInvOverdue ? 'text-red-600 font-bold' : isDark ? 'text-slate-400' : 'text-slate-600'
                     }`}>
-                      {new Date(inv.dueDate).toLocaleDateString()}
+                      {formatDate(inv.dueDate)}
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -333,6 +414,7 @@ export default function Invoices() {
                           <button 
                             onClick={() => handleSendInvoice(inv)}
                             title="Send Invoice"
+                            aria-label="Send Invoice"
                             className="px-2 py-1.5 text-blue-600 font-bold text-xs hover:bg-blue-50 rounded-lg"
                           >
                             ✈️
@@ -342,6 +424,7 @@ export default function Invoices() {
                           <button 
                             onClick={() => handlePaymentClick(inv)}
                             title="Record Payment"
+                            aria-label="Record Payment"
                             className="px-2 py-1.5 text-emerald-600 font-bold text-xs hover:bg-emerald-50 rounded-lg"
                           >
                             💰
@@ -350,31 +433,34 @@ export default function Invoices() {
                         <button 
                           onClick={() => setShowPaymentHistory(showPaymentHistory === inv.id ? null : inv.id)}
                           title="Payment History"
+                          aria-label="Payment History"
                           className="px-2 py-1.5 text-cyan-600 font-bold text-xs hover:bg-cyan-50 rounded-lg"
                         >
                           📋
                         </button>
                         <button 
                           onClick={() => exportToPDF(inv)}
+                          disabled={exportingInvoice === inv.id}
                           title="Export to PDF"
-                          className="px-2 py-1.5 text-orange-600 font-bold text-xs hover:bg-orange-50 rounded-lg"
+                          aria-label="Export to PDF"
+                          className="px-2 py-1.5 text-orange-600 font-bold text-xs hover:bg-orange-50 rounded-lg disabled:opacity-50"
                         >
-                          📄
+                          {exportingInvoice === inv.id ? '⏳' : '📄'}
                         </button>
                         <button 
                           onClick={() => { setEditingInvoice(inv); setIsTemplateModalOpen(true); }}
                           title="Create Template"
+                          aria-label="Create Template"
                           className="px-2 py-1.5 text-indigo-600 font-bold text-xs hover:bg-indigo-50 rounded-lg"
                         >
                           🎨
                         </button>
                         <button 
-                          onClick={() => deleteInvoice(inv.id)}
+                          onClick={() => handleDelete(inv.id)}
                           title="Delete"
+                          aria-label="Delete Invoice"
                           className={`px-2 py-1.5 font-bold text-xs rounded-lg ${
-                            isDark
-                              ? 'text-slate-400 hover:text-red-400 hover:bg-slate-700'
-                              : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
+                            isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-700' : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
                           }`}
                         >
                           🗑️
@@ -395,58 +481,49 @@ export default function Invoices() {
         </table>
       </div>
 
-      {/* PAYMENT HISTORY - EXPANDABLE ROWS */}
-      {showPaymentHistory && (
+      {/* PAYMENT HISTORY */}
+      {historyInvoice && (
         <div className={`p-4 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
-          {(() => {
-            const invoice = invoices.find(i => i.id === showPaymentHistory);
-            return invoice ? (
-              <div>
-                <h3 className={`font-bold mb-3 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  💳 Payment History - {invoice.invoiceNumber}
-                </h3>
-                {invoice.paymentHistory && invoice.paymentHistory.length > 0 ? (
-                  <div className="space-y-2">
-                    {invoice.paymentHistory.map((payment, idx) => (
-                      <div key={idx} className={`p-3 rounded-lg ${isDark ? 'bg-slate-700' : 'bg-slate-50'}`}>
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                              ${payment.amount.toFixed(2)} • {payment.method.replace('_', ' ')}
-                            </p>
-                            <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                              {new Date(payment.date).toLocaleString()}
-                            </p>
-                            {payment.reference && (
-                              <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                Ref: {payment.reference}
-                              </p>
-                            )}
-                            {payment.notes && (
-                              <p className={`text-xs mt-1 italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                {payment.notes}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+          <h3 className={`font-bold mb-3 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            💳 Payment History - {historyInvoice.invoiceNumber}
+          </h3>
+          {historyInvoice.paymentHistory && historyInvoice.paymentHistory.length > 0 ? (
+            <div className="space-y-2">
+              {historyInvoice.paymentHistory.map((payment, idx) => (
+                <div key={idx} className={`p-3 rounded-lg ${isDark ? 'bg-slate-700' : 'bg-slate-50'}`}>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        ${formatCurrency(payment.amount)} • {payment.method?.replace('_', ' ')}
+                      </p>
+                      <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {formatDate(payment.date)}
+                      </p>
+                      {payment.reference && (
+                        <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          Ref: {payment.reference}
+                        </p>
+                      )}
+                      {payment.notes && (
+                        <p className={`text-xs mt-1 italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {payment.notes}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <p className={`text-sm italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>No payment history yet.</p>
-                )}
-              </div>
-            ) : null;
-          })()}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={`text-sm italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>No payment history yet.</p>
+          )}
         </div>
       )}
 
       {/* PAGINATION */}
       {totalPages > 1 && (
         <div className={`flex items-center justify-between p-4 rounded-2xl border ${
-          isDark
-            ? 'bg-slate-800 border-slate-700'
-            : 'bg-white border-slate-200'
+          isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
         }`}>
           <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             Page {currentPage} of {totalPages}
@@ -456,9 +533,7 @@ export default function Invoices() {
               onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
               className={`px-3 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-50 ${
-                isDark
-                  ? 'border border-slate-600 hover:bg-slate-700 text-slate-300'
-                  : 'border border-slate-200 hover:bg-slate-50 text-slate-900'
+                isDark ? 'border border-slate-600 hover:bg-slate-700 text-slate-300' : 'border border-slate-200 hover:bg-slate-50 text-slate-900'
               }`}
             >
               ← Prev
@@ -467,9 +542,7 @@ export default function Invoices() {
               onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
               className={`px-3 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-50 ${
-                isDark
-                  ? 'border border-slate-600 hover:bg-slate-700 text-slate-300'
-                  : 'border border-slate-200 hover:bg-slate-50 text-slate-900'
+                isDark ? 'border border-slate-600 hover:bg-slate-700 text-slate-300' : 'border border-slate-200 hover:bg-slate-50 text-slate-900'
               }`}
             >
               Next →
@@ -478,69 +551,48 @@ export default function Invoices() {
         </div>
       )}
 
-      {/* PAYMENT RECORDING MODAL */}
+      {/* PAYMENT MODAL */}
       {isPaymentModalOpen && editingInvoice && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className={`w-full max-w-md rounded-3xl shadow-2xl border p-8 ${
-            isDark
-              ? 'bg-slate-800 border-slate-700'
-              : 'bg-white border-slate-100'
-          }`}>
-            <h2 className={`text-2xl font-bold mb-6 ${isDark ? 'text-white' : 'text-slate-800'}`}>
-              💰 Record Payment
-            </h2>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && setIsPaymentModalOpen(false)}>
+          <div className={`w-full max-w-md rounded-3xl shadow-2xl border p-8 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
+            <h2 className={`text-2xl font-bold mb-6 ${isDark ? 'text-white' : 'text-slate-800'}`}>💰 Record Payment</h2>
 
             <div className={`p-4 rounded-lg mb-6 space-y-2 ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}>
               <div>
                 <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Invoice Total</p>
-                <p className="text-2xl font-bold text-violet-600">${editingInvoice.total?.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-violet-600">${formatCurrency(editingInvoice.total)}</p>
               </div>
-              <div className="pt-2 border-t border-slate-600">
+              <div className="pt-2 border-t border-slate-600/30">
                 <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Already Paid</p>
-                <p className={`text-lg font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
-                  ${(editingInvoice.amountPaid || 0).toFixed(2)}
-                </p>
+                <p className={`text-lg font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>${formatCurrency(editingInvoice.amountPaid)}</p>
               </div>
-              <div className="pt-2 border-t border-slate-600">
+              <div className="pt-2 border-t border-slate-600/30">
                 <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Remaining Balance</p>
-                <p className={`text-lg font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                  ${(editingInvoice.total - (editingInvoice.amountPaid || 0)).toFixed(2)}
-                </p>
+                <p className={`text-lg font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>${formatCurrency(toNumber(editingInvoice.total) - toNumber(editingInvoice.amountPaid))}</p>
               </div>
             </div>
 
             <form onSubmit={(e) => { e.preventDefault(); submitPayment(); }} className="space-y-4">
               <div>
-                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Payment Amount *
-                </label>
+                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Payment Amount *</label>
                 <input 
                   type="number" 
                   step="0.01"
-                  value={paymentData.amount}
+                  min="0.01"
+                  max={toNumber(editingInvoice.total) - toNumber(editingInvoice.amountPaid)}
+                  value={paymentData.amount || ''}
                   onChange={(e) => setPaymentData({...paymentData, amount: parseFloat(e.target.value) || 0})}
-                  max={editingInvoice.total - (editingInvoice.amountPaid || 0)}
-                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border font-bold ${
-                    isDark
-                      ? 'bg-slate-700 border-slate-600 text-white'
-                      : 'bg-slate-50 border-slate-200 text-slate-900'
-                  }`}
+                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border font-bold ${isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
                   required
                 />
               </div>
 
               <div>
-                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Payment Method
-                </label>
+                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Payment Method</label>
                 <select 
                   value={paymentData.method}
                   onChange={(e) => setPaymentData({...paymentData, method: e.target.value})}
-                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border ${
-                    isDark
-                      ? 'bg-slate-700 border-slate-600 text-white'
-                      : 'bg-slate-50 border-slate-200 text-slate-900'
-                  }`}
+                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border ${isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
                 >
                   <option value="credit_card">💳 Credit Card</option>
                   <option value="bank_transfer">🏦 Bank Transfer</option>
@@ -551,106 +603,59 @@ export default function Invoices() {
               </div>
 
               <div>
-                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Reference Number (e.g., Check #, Transaction ID)
-                </label>
+                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Reference Number</label>
                 <input 
                   type="text"
                   value={paymentData.reference}
                   onChange={(e) => setPaymentData({...paymentData, reference: e.target.value})}
                   placeholder="Optional"
-                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border ${
-                    isDark
-                      ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-500'
-                      : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
-                  }`}
+                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border ${isDark ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'}`}
                 />
               </div>
 
               <div>
-                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Notes
-                </label>
+                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Notes</label>
                 <textarea 
                   value={paymentData.notes}
                   onChange={(e) => setPaymentData({...paymentData, notes: e.target.value})}
-                  placeholder="Optional notes about this payment"
+                  placeholder="Optional notes"
                   rows="2"
-                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border resize-none ${
-                    isDark
-                      ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-500'
-                      : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
-                  }`}
+                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border resize-none ${isDark ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'}`}
                 />
               </div>
 
               <div className="flex gap-2 pt-4">
-                <button 
-                  type="button" 
-                  onClick={() => setIsPaymentModalOpen(false)} 
-                  className={`flex-1 py-3 rounded-xl font-bold transition-all ${
-                    isDark
-                      ? 'bg-slate-700 hover:bg-slate-600 text-white'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold transition-all"
-                >
-                  Record Payment
-                </button>
+                <button type="button" onClick={() => setIsPaymentModalOpen(false)} className={`flex-1 py-3 rounded-xl font-bold transition-all ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}>Cancel</button>
+                <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold transition-all">Record Payment</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* INVOICE TEMPLATE MODAL */}
+      {/* TEMPLATE MODAL */}
       {isTemplateModalOpen && editingInvoice && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className={`w-full max-w-md rounded-3xl shadow-2xl border p-8 ${
-            isDark
-              ? 'bg-slate-800 border-slate-700'
-              : 'bg-white border-slate-100'
-          }`}>
-            <h2 className={`text-2xl font-bold mb-6 ${isDark ? 'text-white' : 'text-slate-800'}`}>
-              🎨 Create Invoice Template
-            </h2>
-
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && setIsTemplateModalOpen(false)}>
+          <div className={`w-full max-w-md rounded-3xl shadow-2xl border p-8 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'}`}>
+            <h2 className={`text-2xl font-bold mb-6 ${isDark ? 'text-white' : 'text-slate-800'}`}>🎨 Create Invoice Template</h2>
             <form onSubmit={(e) => { e.preventDefault(); handleCreateTemplate(); }} className="space-y-4">
               <div>
-                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Template Name *
-                </label>
+                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Template Name *</label>
                 <input 
                   type="text"
                   value={templateData.name}
                   onChange={(e) => setTemplateData({...templateData, name: e.target.value})}
-                  placeholder="e.g., Monthly Service Invoice"
-                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border ${
-                    isDark
-                      ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-500'
-                      : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'
-                  }`}
+                  placeholder="e.g., Monthly Service"
+                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border ${isDark ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'}`}
                   required
                 />
               </div>
-
               <div>
-                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Recurring Frequency
-                </label>
+                <label className={`block text-xs font-bold uppercase mb-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Frequency</label>
                 <select 
                   value={templateData.frequency}
                   onChange={(e) => setTemplateData({...templateData, frequency: e.target.value})}
-                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border ${
-                    isDark
-                      ? 'bg-slate-700 border-slate-600 text-white'
-                      : 'bg-slate-50 border-slate-200 text-slate-900'
-                  }`}
+                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-violet-500 outline-none border ${isDark ? 'bg-slate-700 border-slate-600 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
                 >
                   <option value="weekly">📆 Weekly</option>
                   <option value="monthly">📅 Monthly</option>
@@ -658,44 +663,26 @@ export default function Invoices() {
                   <option value="annual">📋 Annual</option>
                 </select>
               </div>
-
-              <p className={`text-xs italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                This template will be used to automatically generate recurring invoices.
-              </p>
-
               <div className="flex gap-2 pt-4">
-                <button 
-                  type="button" 
-                  onClick={() => { setIsTemplateModalOpen(false); setEditingInvoice(null); }} 
-                  className={`flex-1 py-3 rounded-xl font-bold transition-all ${
-                    isDark
-                      ? 'bg-slate-700 hover:bg-slate-600 text-white'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold transition-all"
-                >
-                  Create Template
-                </button>
+                <button type="button" onClick={() => { setIsTemplateModalOpen(false); setEditingInvoice(null); }} className={`flex-1 py-3 rounded-xl font-bold transition-all ${isDark ? 'bg-slate-700 hover:bg-slate-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}>Cancel</button>
+                <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold transition-all">Create Template</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* HIDDEN PDF TEMPLATE */}
-      {paginatedInvoices.map(inv => {
+      {/* PDF TEMPLATE - Only renders when exporting */}
+      {exportingInvoice && (() => {
+        const inv = invoices.find(i => i.id === exportingInvoice);
+        if (!inv) return null;
         const customer = customers.find(c => c.id === inv.customerId);
+        
         return (
           <div 
-            key={inv.id}
-            id={`invoice-${inv.id}`}
-            className="hidden"
-            style={{ padding: '40px', backgroundColor: 'white', color: 'black', fontFamily: 'Arial, sans-serif' }}
+            id={`invoice-pdf-${inv.id}`}
+            className="fixed -left-[9999px] top-0 bg-white text-black p-[40px] font-sans w-[210mm]"
+            style={{ fontFamily: 'Arial, sans-serif' }}
           >
             <div style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
               <div>
@@ -703,15 +690,9 @@ export default function Invoices() {
                 <p style={{ fontSize: '12px', color: '#666' }}>Invoice #{inv.invoiceNumber}</p>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <p style={{ fontSize: '12px', marginBottom: '5px' }}>
-                  <strong>Date:</strong> {new Date(inv.createdAt).toLocaleDateString()}
-                </p>
-                <p style={{ fontSize: '12px', marginBottom: '5px' }}>
-                  <strong>Due Date:</strong> {new Date(inv.dueDate).toLocaleDateString()}
-                </p>
-                <p style={{ fontSize: '12px' }}>
-                  <strong>Status:</strong> {INVOICE_STATUSES[inv.status]?.label || inv.status}
-                </p>
+                <p style={{ fontSize: '12px', marginBottom: '5px' }}><strong>Date:</strong> {formatDate(inv.createdAt)}</p>
+                <p style={{ fontSize: '12px', marginBottom: '5px' }}><strong>Due Date:</strong> {formatDate(inv.dueDate)}</p>
+                <p style={{ fontSize: '12px' }}><strong>Status:</strong> {INVOICE_STATUSES[inv.status]?.label || inv.status}</p>
               </div>
             </div>
 
@@ -743,9 +724,7 @@ export default function Invoices() {
                     <td style={{ padding: '12px', fontSize: '12px' }}>Product ID: {item.productId}</td>
                     <td style={{ textAlign: 'center', padding: '12px', fontSize: '12px' }}>{toNumber(item.quantity)}</td>
                     <td style={{ textAlign: 'right', padding: '12px', fontSize: '12px' }}>${formatCurrency(item.price)}</td>
-                    <td style={{ textAlign: 'right', padding: '12px', fontSize: '12px' }}>
-                      ${formatCurrency(toNumber(item.quantity) * toNumber(item.price) * (1 - toNumber(item.discount) / 100))}
-                    </td>
+                    <td style={{ textAlign: 'right', padding: '12px', fontSize: '12px' }}>${formatCurrency(toNumber(item.quantity) * toNumber(item.price) * (1 - toNumber(item.discount) / 100))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -753,37 +732,28 @@ export default function Invoices() {
 
             <div style={{ marginLeft: 'auto', width: '300px', marginBottom: '30px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #ddd', fontSize: '12px' }}>
-                <span>Subtotal:</span>
-                <span>${formatCurrency(inv.subtotal)}</span>
+                <span>Subtotal:</span><span>${formatCurrency(inv.subtotal)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #ddd', fontSize: '12px' }}>
-                <span>Tax:</span>
-                <span>${formatCurrency(inv.tax)}</span>
+                <span>Tax:</span><span>${formatCurrency(inv.tax)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #ddd', fontSize: '12px' }}>
-                <span>Shipping:</span>
-                <span>${formatCurrency(inv.shipping)}</span>
+                <span>Shipping:</span><span>${formatCurrency(inv.shipping)}</span>
               </div>
               {toNumber(inv.discount) > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid #ddd', fontSize: '12px' }}>
-                  <span>Discount:</span>
-                  <span>-${formatCurrency(inv.discount)}</span>
+                  <span>Discount:</span><span>-${formatCurrency(inv.discount)}</span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', fontSize: '14px', fontWeight: 'bold', color: '#7c3aed' }}>
-                <span>Total Due:</span>
-                <span>${formatCurrency(inv.total)}</span>
+                <span>Total Due:</span><span>${formatCurrency(inv.total)}</span>
               </div>
             </div>
 
             {toNumber(inv.amountPaid) > 0 && (
               <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f0f9ff', borderLeft: '4px solid #7c3aed' }}>
-                <p style={{ fontSize: '12px', marginBottom: '5px' }}>
-                  <strong>Amount Paid:</strong> ${formatCurrency(inv.amountPaid)}
-                </p>
-                <p style={{ fontSize: '12px', marginBottom: '5px' }}>
-                  <strong>Balance Due:</strong> ${formatCurrency(toNumber(inv.total) - toNumber(inv.amountPaid))}
-                </p>
+                <p style={{ fontSize: '12px', marginBottom: '5px' }}><strong>Amount Paid:</strong> ${formatCurrency(inv.amountPaid)}</p>
+                <p style={{ fontSize: '12px', marginBottom: '5px' }}><strong>Balance Due:</strong> ${formatCurrency(toNumber(inv.total) - toNumber(inv.amountPaid))}</p>
               </div>
             )}
 
@@ -793,7 +763,7 @@ export default function Invoices() {
             </div>
           </div>
         );
-      })}
+      })()}
     </div>
   );
 }

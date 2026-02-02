@@ -1,184 +1,216 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { NavLink } from '../components/NavLink';
-import logo from '../assets/logo.svg';
+import { 
+  LayoutDashboard, 
+  Package, 
+  Users, 
+  ShoppingBag, 
+  ShoppingCart, 
+  FileText, 
+  Menu, 
+  X, 
+  Sun, 
+  Moon, 
+  Search, 
+  Bell,
+  Zap,
+  Hexagon,
+  User
+} from 'lucide-react';
 
 export default function MainLayout({ children }) {
   const { globalSearch, setGlobalSearch } = useApp();
   const { isDark, toggleTheme } = useTheme();
-  const [showApiInfo, setShowApiInfo] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [showApiInfo, setShowApiInfo] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  // Handle scroll effect
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleSearchChange = useCallback((e) => {
     setGlobalSearch(e.target.value);
   }, [setGlobalSearch]);
 
-  const handleSidebarEnter = useCallback(() => {
-    setSidebarExpanded(true);
-  }, []);
-
-  const handleSidebarLeave = useCallback(() => {
-    setSidebarExpanded(false);
-  }, []);
-
-  const navItems = useMemo(() => [
-    { path: '/', label: 'Dashboard', icon: '📊' },
-    { path: '/inventory', label: 'Inventory', icon: '📦' },
-    { path: '/customers', label: 'Customers', icon: '👥' },
-    { path: '/products', label: 'Products', icon: '🛍️' },
-    { path: '/orders', label: 'Orders', icon: '🛒' },
-    { path: '/invoices', label: 'Invoices', icon: '🧾' },
-  ], []);
+  // Navigation items with Lucide icons
+  const navItems = [
+    { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/inventory', label: 'Inventory', icon: Package },
+    { path: '/customers', label: 'Customers', icon: Users },
+    { path: '/products', label: 'Products', icon: ShoppingBag },
+    { path: '/orders', label: 'Orders', icon: ShoppingCart },
+    { path: '/invoices', label: 'Invoices', icon: FileText },
+  ];
 
   return (
-    <div className={`flex min-h-screen font-sans ${isDark ? 'dark bg-slate-950' : 'bg-slate-50'}`}>
-      {/* SIDEBAR */}
-      <nav
-        onMouseEnter={handleSidebarEnter}
-        onMouseLeave={handleSidebarLeave}
-        className={`${
-          sidebarExpanded ? 'w-64' : 'w-20'
-        } text-white p-4 shadow-2xl sticky top-0 h-screen overflow-y-auto transition-all duration-300 ease-in-out flex flex-col`}
-        style={{
-          willChange: 'width',
-          background: 'linear-gradient(to bottom, #0f172a, #020617)'
-        }}
+    <div className={`min-h-screen font-sans antialiased ${isDark ? 'dark bg-slate-950' : 'bg-slate-50'}`}>
+      {/* Mobile Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`fixed top-0 left-0 z-50 h-screen bg-slate-900 border-r border-slate-800 transition-all duration-300 ease-out
+          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          ${sidebarExpanded ? 'lg:w-64' : 'lg:w-20'}`}
+        onMouseEnter={() => setSidebarExpanded(true)}
+        onMouseLeave={() => setSidebarExpanded(false)}
       >
-        {/* Logo/Brand - CENTERED */}
-        <div className="mb-8 flex items-center justify-center h-12">
-          {sidebarExpanded ? (
-            <h2 
-              className="text-2xl font-black bg-clip-text text-transparent whitespace-nowrap"
-              style={{
-                backgroundImage: 'linear-gradient(to right, #60a5fa, #818cf8)'
-              }}
-            >
-              ERP Pro
-            </h2>
-          ) : (
-            <div 
-              className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-black text-lg shrink-0"
-              style={{
-                background: 'linear-gradient(135deg, #60a5fa, #4f46e5)'
-              }}
-            >
-              E
+        {/* Logo */}
+        <div className="h-16 flex items-center px-4 border-b border-slate-800/50">
+          <div className={`flex items-center gap-3 transition-all duration-300 w-full ${sidebarExpanded ? '' : 'lg:justify-center'}`}>
+            {/* Geometric Logo */}
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-violet-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-emerald-500/20">
+              <Hexagon className="w-6 h-6" strokeWidth={2.5} />
             </div>
-          )}
+            
+            {/* ERP Pro Text */}
+            <div className={`overflow-hidden transition-all duration-300 ${sidebarExpanded ? 'w-auto opacity-100' : 'w-0 opacity-0 lg:hidden'}`}>
+              <span className="font-black text-xl text-white whitespace-nowrap tracking-tight">
+                ERP<span className="text-emerald-400">Pro</span>
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Navigation Links - CENTERED ICONS */}
-        <ul className="space-y-2 mb-8 flex-1">
+        {/* Navigation */}
+        <nav className="p-3 space-y-1">
           {navItems.map((item) => (
-            <li key={item.path} className="flex justify-center">
-              <div className="w-full">
-                <NavLink
-                  to={item.path}
-                  icon={item.icon}
-                  label={item.label}
-                  expanded={sidebarExpanded}
-                />
-              </div>
-            </li>
+            <NavLink
+              key={item.path}
+              to={item.path}
+              icon={item.icon}
+              label={item.label}
+              expanded={sidebarExpanded}
+              onClick={() => setMobileMenuOpen(false)}
+            />
           ))}
-        </ul>
+        </nav>
 
-        {/* API Integration Info - CENTERED */}
-        <div className="border-t border-slate-700 pt-4 mt-auto flex flex-col items-center w-full">
+        {/* Bottom Section */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-slate-800/50">
           <button
             onClick={() => setShowApiInfo(!showApiInfo)}
-            className={`${
-              sidebarExpanded ? 'w-full' : 'w-10 h-10'
-            } flex items-center justify-center rounded-xl hover:bg-slate-800/50 transition-colors text-xs font-medium text-slate-300 p-2`}
-            type="button"
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 transition-all duration-200 ${sidebarExpanded ? '' : 'lg:justify-center'}`}
           >
-            <span className="text-lg">🔌</span>
+            <Zap className="w-5 h-5 shrink-0" />
             {sidebarExpanded && (
               <>
-                <span className="ml-2 flex-1 text-left">API</span>
-                <span className="text-slate-500">{showApiInfo ? '▼' : '▶'}</span>
+                <span className="whitespace-nowrap text-sm font-medium flex-1 text-left">API Status</span>
+                <span className="text-xs">{showApiInfo ? '▼' : '▶'}</span>
               </>
             )}
           </button>
+          
           {showApiInfo && sidebarExpanded && (
-            <div className="bg-slate-800/50 rounded-lg p-3 text-[11px] text-slate-300 space-y-2 border border-slate-700 mt-2 w-full">
-              <p className="font-bold text-slate-200">Base URL</p>
-              <p className="font-mono text-blue-400 text-[10px] break-all">
-                {import.meta.env.VITE_API_URL || 'localhost:3000/api'}
+            <div className="mt-2 p-3 rounded-xl bg-slate-800/50 border border-slate-700/50 text-xs">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-slate-300">Connected</span>
+              </div>
+              <p className="text-slate-500 font-mono text-[10px] truncate">
+                {import.meta.env.VITE_API_URL || 'localhost:3000'}
               </p>
             </div>
           )}
         </div>
-      </nav>
+      </aside>
 
-      {/* MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col">
-        {/* HEADER */}
-        <header className={`h-20 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} border-b flex items-center justify-between px-8 shadow-sm sticky top-0 z-40`}>
-          {/* Search Bar */}
-          <div className="flex-1 max-w-md">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+      {/* Main Content */}
+      <div className="lg:ml-20 min-h-screen flex flex-col transition-all duration-300">
+        {/* Header */}
+        <header className={`h-16 px-4 lg:px-8 flex items-center justify-between sticky top-0 z-30 border-b transition-all duration-200 ${scrolled ? 'shadow-lg' : ''} ${isDark ? 'bg-slate-900/95 border-slate-800 backdrop-blur' : 'bg-white/95 border-slate-200 backdrop-blur'}`}>
+          {/* Left: Mobile Menu + Search */}
+          <div className="flex items-center gap-4 flex-1">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className={`lg:hidden p-2 rounded-lg transition-colors ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+
+            <div className="relative max-w-md w-full hidden sm:block">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder="Search across all data..."
                 value={globalSearch}
                 onChange={handleSearchChange}
-                className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all duration-150 ${
-                  isDark 
-                    ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500 focus:bg-slate-700' 
-                    : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white'
-                }`}
+                className={`w-full pl-10 pr-4 py-2 rounded-xl border text-sm transition-all duration-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${isDark ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'}`}
               />
+              {globalSearch && (
+                <button 
+                  onClick={() => setGlobalSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* User Section */}
-          <div className="flex items-center space-x-6 ml-8">
+          {/* Right: Actions */}
+          <div className="flex items-center gap-2 sm:gap-4">
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className={`p-2.5 rounded-xl transition-colors hover:bg-opacity-80 ${
-                isDark
-                  ? 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              type="button"
+              className={`p-2 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'bg-slate-800 text-amber-400 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
             >
-              {isDark ? '☀️' : '🌙'}
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
 
-            {/* Logo Image */}
-            {logo && (
-              <img
-                src={logo}
-                alt="Company Logo"
-                className="h-10 w-auto object-contain hover:opacity-80 transition-opacity"
-              />
-            )}
+            {/* Notifications */}
+            <button className={`relative p-2 rounded-xl transition-colors ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
+            </button>
 
             {/* User Profile */}
-            <div className={`hidden md:flex items-center gap-3 pl-6 border-l ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-              <div 
-                className="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-black text-white shadow-lg shrink-0"
-                style={{
-                  background: 'linear-gradient(135deg, #60a5fa, #4f46e5)'
-                }}
-              >
-                AD
-              </div>
-              <div>
-                <p className={`font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>Admin</p>
+            <div className={`flex items-center gap-3 pl-4 border-l ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+              <div className="text-right hidden sm:block">
+                <p className={`text-sm font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>Admin</p>
                 <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>System Admin</p>
+              </div>
+    
+              {/* User Icon with Status Dot */}
+              <div className="relative">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                  <User className="w-5 h-5" />
+                </div>
+                {/* Online Status Dot */}
+                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />
               </div>
             </div>
           </div>
         </header>
 
-        {/* PAGE CONTENT */}
-        <main className={`flex-1 p-8 overflow-y-auto ${isDark ? 'bg-slate-950' : 'bg-slate-50'}`}>
+        {/* Mobile Search */}
+        <div className="sm:hidden px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={globalSearch}
+              onChange={handleSearchChange}
+              className={`w-full pl-10 pr-4 py-2 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+            />
+          </div>
+        </div>
+
+        {/* Page Content */}
+        <main className={`flex-1 p-4 lg:p-8 ${isDark ? 'bg-slate-950' : 'bg-slate-50'}`}>
           <div className="max-w-7xl mx-auto">
             {children}
           </div>

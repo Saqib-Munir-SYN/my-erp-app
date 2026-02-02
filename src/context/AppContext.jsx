@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from 'react';
 
 const AppContext = createContext();
@@ -273,9 +274,15 @@ export function AppProvider({ children }) {
   }, [addInvoice]);
 
   // Auto-check for overdue invoices on mount and when invoices change
-  useEffect(() => {
+  // Replace the overdue check useEffect with this:
+useEffect(() => {
+  // Only check on mount, not on every invoice change
+  const timeoutId = setTimeout(() => {
     checkAndMarkOverdue();
-  }, [invoices, checkAndMarkOverdue]);
+  }, 1000); // Small delay to ensure initial render completes
+  
+  return () => clearTimeout(timeoutId);
+   }, []); // Empty dependency array - run once on mount
 
   // 8. MEMOIZE VALUE TO PREVENT UNNECESSARY RE-RENDERS
   const value = useMemo(
