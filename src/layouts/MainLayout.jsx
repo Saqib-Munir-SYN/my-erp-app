@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { NavLink } from '../components/NavLink';
+import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, 
   Package, 
@@ -17,7 +18,13 @@ import {
   Bell,
   Zap,
   Hexagon,
-  User
+  User,
+  Check,
+  Trash2,
+  DollarSign,
+  AlertTriangle,
+  ShoppingBag as OrderIcon,
+  LogOut
 } from 'lucide-react';
 
 export default function MainLayout({ children }) {
@@ -27,6 +34,44 @@ export default function MainLayout({ children }) {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [showApiInfo, setShowApiInfo] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { user, logout, isGuest } = useAuth();
+
+  // Notifications state
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([
+    {
+      id: 1,
+      type: 'payment',
+      title: 'Payment Received',
+      message: 'Invoice #INV-12345 has been paid',
+      time: '2 minutes ago',
+      read: false,
+      icon: DollarSign,
+      color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10'
+    },
+    {
+      id: 2,
+      type: 'alert',
+      title: 'Low Stock Alert',
+      message: 'Industrial Widget (WID-01) is running low',
+      time: '1 hour ago',
+      read: false,
+      icon: AlertTriangle,
+      color: 'text-amber-500 bg-amber-50 dark:bg-amber-500/10'
+    },
+    {
+      id: 3,
+      type: 'order',
+      title: 'New Order',
+      message: 'Order #ORD-98765 received from Acme Corp',
+      time: '3 hours ago',
+      read: true,
+      icon: OrderIcon,
+      color: 'text-blue-500 bg-blue-50 dark:bg-blue-500/10'
+    }
+  ]);
+  
+  const notificationRef = useRef(null);
 
   // Handle scroll effect
   useEffect(() => {
@@ -35,11 +80,31 @@ export default function MainLayout({ children }) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Click outside to close notifications
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setNotificationsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleSearchChange = useCallback((e) => {
     setGlobalSearch(e.target.value);
   }, [setGlobalSearch]);
 
-  // Navigation items with Lucide icons
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const markAllAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const deleteNotification = (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
   const navItems = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/inventory', label: 'Inventory', icon: Package },
@@ -70,12 +135,9 @@ export default function MainLayout({ children }) {
         {/* Logo */}
         <div className="h-16 flex items-center px-4 border-b border-slate-800/50">
           <div className={`flex items-center gap-3 transition-all duration-300 w-full ${sidebarExpanded ? '' : 'lg:justify-center'}`}>
-            {/* Geometric Logo */}
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-violet-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-emerald-500/20">
               <Hexagon className="w-6 h-6" strokeWidth={2.5} />
             </div>
-            
-            {/* ERP Pro Text */}
             <div className={`overflow-hidden transition-all duration-300 ${sidebarExpanded ? 'w-auto opacity-100' : 'w-0 opacity-0 lg:hidden'}`}>
               <span className="font-black text-xl text-white whitespace-nowrap tracking-tight">
                 ERP<span className="text-emerald-400">Pro</span>
@@ -171,26 +233,127 @@ export default function MainLayout({ children }) {
             </button>
 
             {/* Notifications */}
-            <button className={`relative p-2 rounded-xl transition-colors ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
-            </button>
+            <div className="relative" ref={notificationRef}>
+              <button 
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className={`relative p-2 rounded-xl transition-colors ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'} ${notificationsOpen ? (isDark ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-900') : ''}`}
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-slate-900 dark:border-slate-900">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notifications Dropdown */}
+              {notificationsOpen && (
+                <div className={`absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                  {/* Header */}
+                  <div className={`flex items-center justify-between px-4 py-3 border-b ${isDark ? 'border-slate-800 bg-slate-800/50' : 'border-slate-100 bg-slate-50/50'}`}>
+                    <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      Notifications
+                      {unreadCount > 0 && (
+                        <span className="ml-2 text-xs font-normal text-slate-500">({unreadCount} new)</span>
+                      )}
+                    </h3>
+                    {unreadCount > 0 && (
+                      <button 
+                        onClick={markAllAsRead}
+                        className="text-xs text-emerald-500 hover:text-emerald-600 font-medium flex items-center gap-1"
+                      >
+                        <Check className="w-3 h-3" />
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  {/* List */}
+                  <div className="max-h-96 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className={`px-4 py-8 text-center text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        No notifications
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <div 
+                          key={notification.id} 
+                          className={`group flex items-start gap-3 p-4 border-b last:border-b-0 transition-colors cursor-pointer ${notification.read ? (isDark ? 'bg-slate-900' : 'bg-white') : (isDark ? 'bg-slate-800/30' : 'bg-emerald-50/30')} ${isDark ? 'border-slate-800 hover:bg-slate-800/50' : 'border-slate-100 hover:bg-slate-50'}`}
+                          onClick={() => {
+                            // Mark as read on click
+                            setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, read: true } : n));
+                          }}
+                        >
+                          <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${notification.color}`}>
+                            <notification.icon className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className={`font-semibold text-sm truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                {notification.title}
+                              </p>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteNotification(notification.id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1 rounded-lg transition-all text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <p className={`text-xs mt-0.5 line-clamp-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                              {notification.message}
+                            </p>
+                            <p className={`text-[10px] mt-1.5 font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                              {notification.time}
+                            </p>
+                          </div>
+                          {!notification.read && (
+                            <div className="shrink-0 w-2 h-2 rounded-full bg-emerald-500 mt-2" />
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className={`px-4 py-3 border-t text-center ${isDark ? 'border-slate-800 bg-slate-800/50' : 'border-slate-100 bg-slate-50/50'}`}>
+                    <button className={`text-xs font-medium ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'} transition-colors`}>
+                      View all notifications →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* User Profile */}
             <div className={`flex items-center gap-3 pl-4 border-l ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="text-right hidden sm:block">
-                <p className={`text-sm font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>Admin</p>
-                <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>System Admin</p>
+                <p className={`text-sm font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                  {user?.name || 'Guest'}
+                </p>
+                <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  {isGuest ? 'Limited Access' : (user?.role || 'Admin')}
+                </p>
               </div>
-    
-              {/* User Icon with Status Dot */}
-              <div className="relative">
+              
+              <div className="relative group">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                   <User className="w-5 h-5" />
                 </div>
-                {/* Online Status Dot */}
-                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />
+                {!isGuest && <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />}
               </div>
+
+              {/* Logout Button */}
+              <button
+                onClick={logout}
+                className={`p-2 rounded-lg transition-colors ml-2 ${isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/10' : 'text-slate-600 hover:text-rose-600 hover:bg-rose-50'}`}
+                title="Logout"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </header>
