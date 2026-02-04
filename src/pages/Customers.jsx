@@ -13,6 +13,23 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [formData, setFormData] = useState({ name: "", email: "", status: "Active" });
   const [currentPage, setCurrentPage] = useState(1);
+  const [formErrors, setFormErrors] = useState({});
+
+  const validateForm = () => {
+    const errors = {};
+
+    if (!formData.name.trim()) {
+      errors.name = "Company name is required.";
+    }
+
+    if (!formData.email.trim()) {
+      errors.email = "Email address is required.";
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      errors.email = "Email address is invalid.";
+    }
+
+    return errors;
+  };
 
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -37,6 +54,14 @@ export default function Customers() {
 
   const handleSave = (e) => {
     e.preventDefault();
+
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    setFormErrors({});
+
     if (editingCustomer) {
       setCustomers(customers.map(c => 
         c.id === editingCustomer.id ? { ...c, ...formData } : c
@@ -231,43 +256,56 @@ export default function Customers() {
               {editingCustomer ? "Update Customer" : "Add Customer"}
             </h2>
             <form onSubmit={handleSave} className="space-y-4">
+
+        <div>
+          <label className={`block text-[10px] font-black uppercase mb-2 ${
+            isDark ? 'text-slate-400' : 'text-slate-400'
+          }`}>
+            Company Name
+          </label>
+          <input 
+            autoFocus
+            type="text" 
+            value={formData.name}
+            onChange={(e) => setFormData({...formData, name: e.target.value})}
+            className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none border ${
+              formErrors.name 
+                ? 'border-red-500 focus:ring-red-500' 
+                : isDark
+                  ? 'bg-slate-700 border-slate-600 text-white'
+                  : 'bg-slate-50 border-slate-200 text-slate-900'
+            }`}
+            required
+          />
+          {formErrors.name && (
+            <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>
+          )}
+        </div>
+
               <div>
-                <label className={`block text-[10px] font-black uppercase mb-2 ${
-                  isDark ? 'text-slate-400' : 'text-slate-400'
-                }`}>
-                  Company Name
-                </label>
-                <input 
-                  autoFocus
-                  type="text" 
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none border ${
-                    isDark
-                      ? 'bg-slate-700 border-slate-600 text-white'
-                      : 'bg-slate-50 border-slate-200 text-slate-900'
-                  }`}
-                  required
-                />
-              </div>
-              <div>
-                <label className={`block text-[10px] font-black uppercase mb-2 ${
-                  isDark ? 'text-slate-400' : 'text-slate-400'
-                }`}>
-                  Email Address
-                </label>
-                <input 
-                  type="email" 
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none border ${
-                    isDark
-                      ? 'bg-slate-700 border-slate-600 text-white'
-                      : 'bg-slate-50 border-slate-200 text-slate-900'
-                  }`}
-                  required
-                />
-              </div>
+          <label className={`block text-[10px] font-black uppercase mb-2 ${
+            isDark ? 'text-slate-400' : 'text-slate-400'
+          }`}>
+            Email Address
+          </label>
+          <input 
+            type="email" 
+            value={formData.email}
+            onChange={(e) => setFormData({...formData, email: e.target.value})}
+            className={`w-full p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none border ${
+              formErrors.email 
+                ? 'border-red-500 focus:ring-red-500' 
+                : isDark
+                  ? 'bg-slate-700 border-slate-600 text-white'
+                  : 'bg-slate-50 border-slate-200 text-slate-900'
+            }`}
+            required
+          />
+          {formErrors.email && (
+            <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>
+          )}
+        </div>
+
               <div>
                 <label className={`block text-[10px] font-black uppercase mb-2 ${
                   isDark ? 'text-slate-400' : 'text-slate-400'
