@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { NavLink } from '../components/NavLink';
 import { useAuth } from '../context/AuthContext';
+import { useFullscreen } from '../hooks/useFullscreen';
 import { 
   LayoutDashboard, 
   Package, 
@@ -24,7 +25,9 @@ import {
   DollarSign,
   AlertTriangle,
   ShoppingBag as OrderIcon,
-  LogOut
+  LogOut,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 
 export default function MainLayout({ children }) {
@@ -35,6 +38,7 @@ export default function MainLayout({ children }) {
   const [showApiInfo, setShowApiInfo] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { user, logout, isGuest } = useAuth();
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   // Notifications state
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -230,6 +234,15 @@ export default function MainLayout({ children }) {
               className={`p-2 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'bg-slate-800 text-amber-400 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
             >
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+
+            {/* Fullscreen Toggle */}
+            <button
+              onClick={toggleFullscreen}
+              className={`p-2 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
             </button>
 
             {/* Notifications */}
