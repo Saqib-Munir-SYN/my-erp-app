@@ -15,6 +15,10 @@ export default function Customers() {
   const [currentPage, setCurrentPage] = useState(1);
   const [formErrors, setFormErrors] = useState({});
 
+  const [isSaving, setIsSaving] = useState(false);
+const [isDeleting, setIsDeleting] = useState(false);
+const [deletingId, setDeletingId] = useState(null); // Track which customer is being deleted
+
   const validateForm = () => {
     const errors = {};
 
@@ -52,32 +56,52 @@ export default function Customers() {
     setIsModalOpen(true);
   };
 
-  const handleSave = (e) => {
-    e.preventDefault();
-
-    const errors = validateForm();
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      return;
-    }
-    setFormErrors({});
-
+const handleSave = async (e) => {
+  e.preventDefault();
+  
+  const errors = validateForm();
+  if (Object.keys(errors).length > 0) {
+    setFormErrors(errors);
+    return;
+  }
+  
+  setFormErrors({});
+  setIsSaving(true); // Start loading
+  
+  try {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     if (editingCustomer) {
       setCustomers(customers.map(c => 
         c.id === editingCustomer.id ? { ...c, ...formData } : c
       ));
     } else {
       setCustomers([...customers, { id: Date.now(), ...formData }]);
-    }
+    }    
     setIsModalOpen(false);
     setCurrentPage(1);
-  };
+  } catch (err) {
+    console.error("Failed to save customer:", err);
+  } finally {
+    setIsSaving(false); // End loading
+  }
+};
 
-  const deleteCustomer = (id) => {
-    if(window.confirm("Delete this customer record?")) {
-      setCustomers(customers.filter(c => c.id !== id));
-    }
-  };
+const deleteCustomer = async (id) => {
+  setDeletingId(id);
+  setIsDeleting(true);
+  
+  try {
+    await new Promise(resolve => setTimeout(resolve, 300)); // Simulate API
+    setCustomers(customers.filter(c => c.id !== id));
+  } catch (err) {
+    console.error("Failed to delete customer:", err);
+  } finally {
+    setIsDeleting(false);
+    setDeletingId(null);
+  }
+};
 
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
@@ -168,16 +192,21 @@ export default function Customers() {
                     >
                       Edit
                     </button>
-                    <button 
-                      onClick={() => deleteCustomer(c.id)} 
-                      className={`px-3 py-1.5 font-bold text-xs rounded-lg uppercase tracking-tighter ${
-                        isDark
-                          ? 'text-slate-400 hover:text-red-400 hover:bg-slate-700'
-                          : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
-                      }`}
-                    >
-                      Del
-                    </button>
+<button 
+  onClick={() => deleteCustomer(c.id)} 
+  disabled={isDeleting && deletingId === c.id}
+  className={`px-3 py-1.5 font-bold text-xs rounded-lg uppercase tracking-tighter flex items-center gap-1 ${isDark
+    ? 'text-slate-400 hover:text-red-400 hover:bg-slate-700'
+    : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
+  } ${isDeleting && deletingId === c.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+>
+  {isDeleting && deletingId === c.id ? (
+    <>
+      <span className="h-3 w-3 border border-current border-t-transparent rounded-full animate-spin"></span>
+      Deleting...
+    </>
+  ) : 'Del'}
+</button>
                   </td>
                 </tr>
               ))
@@ -326,23 +355,29 @@ export default function Customers() {
                 </select>
               </div>
               <div className="flex gap-2 pt-4">
-                <button 
-                  type="button" 
-                  onClick={() => setIsModalOpen(false)} 
-                  className={`flex-1 py-3 rounded-xl font-bold transition-all ${
-                    isDark
-                      ? 'bg-slate-700 hover:bg-slate-600 text-white'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold transition-all"
-                >
-                  Save
-                </button>
+<button 
+  type="button" 
+  onClick={() => !isSaving && setIsModalOpen(false)} 
+  disabled={isSaving}
+  className={`flex-1 py-3 rounded-xl font-bold transition-all ${isDark
+    ? 'bg-slate-700 hover:bg-slate-600 text-white'
+    : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+  } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+>
+  Cancel
+</button>
+<button 
+  type="submit" 
+  disabled={isSaving}
+  className={`flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
+>
+  {isSaving ? (
+    <>
+      <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+      Saving...
+    </>
+  ) : 'Save'}
+</button>
               </div>
             </form>
           </div>
